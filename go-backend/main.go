@@ -28,6 +28,7 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer conn.Close()
+	log.Println("Connection upgraded")
 
 	// Connect to the Telnet server
 	telnetAddr := "vikingmud.org:2001"
@@ -45,7 +46,6 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 				log.Printf("WebSocket type: %d read error: %s", i, err)
 				return
 			}
-			log.Println("relaying massage: ", string(msg))
 			// Forward WebSocket data to Telnet
 			fprintf, err := fmt.Fprintf(telnetConn, string(msg)+"\n")
 			if err != nil {
@@ -57,7 +57,6 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	for {
 		buf := make([]byte, 1024*1024)
 		_, err := telnetConn.Read(buf)
-		fmt.Println("Read: ", string(buf))
 		if err != nil {
 			log.Println("Telnet read error:", err)
 			return
