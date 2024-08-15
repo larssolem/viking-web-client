@@ -57,6 +57,10 @@ button:focus-visible {
   white-space: pre-wrap;
 }
 
+.app {
+  text-align: left;
+}
+
 pre {
   text-align: left;
   white-space: pre;
