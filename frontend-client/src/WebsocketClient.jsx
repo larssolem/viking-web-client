@@ -70,17 +70,13 @@ const WebSocketClient = () => {
 
 
     const handleSendMessage = () => {
-        if (inputMessage.trim() !== '') {
-            console.log('inputMessage', inputMessage);
-            setMessages([...messages, inputMessage]);
-            ws.current.send(inputMessage);
-            setInputMessage('');
-        }
+        console.log('inputMessage', inputMessage);
+        ws.current.send(inputMessage);
+        setInputMessage('');
     }
 
     const handleKeyDown = (e) => {
         if (e.key === "Enter") {
-            setMessages([...messages, inputMessage]);
             ws.current.send(inputMessage);
             setInputMessage('');
         }

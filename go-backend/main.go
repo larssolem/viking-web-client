@@ -23,6 +23,7 @@ type Message struct {
 
 func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	conn, err := upgrader.Upgrade(w, r, nil)
+	log.Printf("connection from %s", conn.RemoteAddr().String())
 	if err != nil {
 		log.Println("WebSocket upgrade error:", err)
 		return
