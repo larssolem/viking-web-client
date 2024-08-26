@@ -46,22 +46,30 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 				log.Printf("WebSocket type: %d read error: %s", i, err)
 				return
 			}
-			// Forward WebSocket data to Telnet
-			fprintf, err := fmt.Fprintf(telnetConn, string(msg)+"\n")
-			if err != nil {
-				log.Println("error when writing: ", err, fprintf)
+			if string(msg) == "__ping__" {
+				mess := Message{Data: "__pong__"}
+				byteMess, err := json.Marshal(mess)
+				if err != nil {
+					log.Println("Error json marshalling message: ", err)
+				}
+				err = conn.WriteMessage(websocket.TextMessage, byteMess)
+			} else {
+				fprintf, err := fmt.Fprintf(telnetConn, string(msg)+"\n")
+				if err != nil {
+					log.Println("error when writing: ", err, fprintf)
+				}
 			}
 		}
 	}()
 
 	for {
 		buf := make([]byte, 1024*1024)
-		_, err := telnetConn.Read(buf)
+		n, err := telnetConn.Read(buf)
 		if err != nil {
 			log.Println("Telnet read error:", err)
 			return
 		}
-		message := Message{Data: string(buf), Time: time.Now()}
+		message := Message{Data: string(buf[:n]), Time: time.Now()}
 		// Forward Telnet data to WebSocket
 		byteMess, err := json.Marshal(message)
 		if err != nil {
@@ -77,5 +85,5 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 func main() {
 	fmt.Println("------------------- starting server ------------------------")
 	http.HandleFunc("/ws", handleWebSocket)
-	log.Fatal(http.ListenAndServe(":8090", nil))
+	log.Fatal(http.ListenAndServe("localhost:8090", nil))
 }
