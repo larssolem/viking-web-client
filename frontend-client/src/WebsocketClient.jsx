@@ -1,99 +1,86 @@
-// eslint-disable-next-line no-unused-vars
-import React, {useState, useEffect, useRef} from 'react';
-import {Xterm} from 'xterm-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Xterm } from 'xterm-react';
 
 const WebSocketClient = () => {
-    const [Terminal, setTerminal] = useState(null);
+    const [terminal, setTerminal] = useState(null);
     const [messages, setMessages] = useState([]);
     const [inputMessage, setInputMessage] = useState('');
-    const [isPaused,] = useState(false);
     const ws = useRef(null);
 
-    useEffect(() => {
+    const initializeWebSocket = () => {
         ws.current = new WebSocket("ws://localhost:8090/ws");
-        ws.current.onopen = () => console.log("ws opened");
-        ws.current.onclose = () => console.log("ws closed");
+        ws.current.onopen = () => console.log("WebSocket opened");
+        ws.current.onclose = () => console.log("WebSocket closed");
+        return setInterval(sendPingMessage, 20000);
+    };
 
-        const wsCurrent = ws.current;
+    const cleanupWebSocket = () => {
+        if (ws.current) {
+            ws.current.close();
+        }
+    };
 
-        const interval = setInterval(() => {
-            sendPing();
-        }, 20000);
+    const handleWebSocketMessage = (e) => {
+        const response = JSON.parse(e.data);
+        const text = response.Data.replace(/[^\x00-\x7F]/g, "");
+        if (text === "__pong__") return;
+        setMessages(prevMessages => [...prevMessages, text]);
+        if (terminal) {
+            terminal.write(text);
+        }
+    };
 
+    const sendPingMessage = () => {
+        if (ws.current) {
+            ws.current.send("__ping__");
+        }
+    };
+
+    const initializeTerminal = (term) => {
+        if (!terminal) {
+            console.log('Initializing terminal', term);
+            setTerminal(term);
+            term.reset();
+            term.resize(100, 80);
+            messages.forEach(message => term.write(message));
+        }
+    };
+
+    const handleSendMessage = () => {
+        if (ws.current) {
+            ws.current.send(inputMessage);
+            setInputMessage('');
+        }
+    };
+
+    const handleKeyDown = (e) => {
+        if (e.key === "Enter") {
+            handleSendMessage();
+        }
+    };
+
+    useEffect(() => {
+        const interval = initializeWebSocket();
         return () => {
+            cleanupWebSocket();
             clearInterval(interval);
-            wsCurrent.close();
         };
     }, []);
 
     useEffect(() => {
         if (!ws.current) return;
-
-        ws.current.onmessage = (e) => {
-            if (isPaused) return;
-            const response = JSON.parse(e.data);
-            const text = response.Data.replace(/[^\x00-\x7F]/g, "");
-
-            if (text === "__pong__") {
-                return
-            }
-            setMessages([...messages, text]);
-
-            if (Terminal) {
-                Terminal.write(text);
-            }
-        };
-    }, [isPaused, messages]);
-
-    const sendPing = () => {
-        if (!ws.current) {
-            return;
-        }
-        ws.current.send("__ping__")
-    }
-
-    const onTermInit = (term) => {
-        if (!Terminal) {
-            console.log('init term', term);
-            setTerminal(term);
-            term.reset();
-            term.resize(100, 80)
-            messages.forEach(message => {
-                term.write(message);
-            })
-        }
-    }
-
-    const onTermDispose = (term) => {
-        setTerminal(null);
-    }
-
-
-    const handleSendMessage = () => {
-        console.log('inputMessage', inputMessage);
-        ws.current.send(inputMessage);
-        setInputMessage('');
-    }
-
-    const handleKeyDown = (e) => {
-        if (e.key === "Enter") {
-            ws.current.send(inputMessage);
-            setInputMessage('');
-        }
-    }
+        ws.current.onmessage = handleWebSocketMessage;
+    }, [messages]);
 
     return (
         <div>
             {messages.length > 0 && (
                 <div className="App">
                     <header className="App-header">
-                        <Xterm
-                            onInit={onTermInit}
-                            onDispose={onTermDispose}
-                        />
+                        <Xterm onInit={initializeTerminal} onDispose={() => setTerminal(null)} />
                     </header>
-                </div>)
-            }
+                </div>
+            )}
             <div>
                 <input
                     type="text"

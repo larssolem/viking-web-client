@@ -10,6 +10,13 @@ import (
 	"time"
 )
 
+const (
+	telnetAddress  = "vikingmud.org:2001"
+	websocketRoute = "/ws"
+	wsBufferSize   = 1024 * 1024
+	serverAddress  = "localhost:8090"
+)
+
 var upgrader = websocket.Upgrader{
 	CheckOrigin: func(r *http.Request) bool {
 		return true
@@ -21,70 +28,81 @@ type Message struct {
 	Time time.Time
 }
 
+func main() {
+	fmt.Println("------------------- starting server ------------------------")
+	http.HandleFunc(websocketRoute, handleWebSocket)
+	log.Fatal(http.ListenAndServe(serverAddress, nil))
+}
+
 func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	conn, err := upgrader.Upgrade(w, r, nil)
-	log.Printf("connection from %s", conn.RemoteAddr().String())
 	if err != nil {
 		log.Println("WebSocket upgrade error:", err)
 		return
 	}
 	defer conn.Close()
-	log.Println("Connection upgraded")
+	log.Printf("Connection upgraded from %s", conn.RemoteAddr().String())
 
-	// Connect to the Telnet server
-	telnetAddr := "vikingmud.org:2001"
-	telnetConn, err := net.Dial("tcp", telnetAddr)
+	telnetConn, err := net.Dial("tcp", telnetAddress)
 	if err != nil {
 		log.Println("Telnet connection error:", err)
 		return
 	}
 	defer telnetConn.Close()
 
-	go func() {
-		for {
-			i, msg, err := conn.ReadMessage()
-			if err != nil {
-				log.Printf("WebSocket type: %d read error: %s", i, err)
-				return
-			}
-			if string(msg) == "__ping__" {
-				mess := Message{Data: "__pong__"}
-				byteMess, err := json.Marshal(mess)
-				if err != nil {
-					log.Println("Error json marshalling message: ", err)
-				}
-				err = conn.WriteMessage(websocket.TextMessage, byteMess)
-			} else {
-				fprintf, err := fmt.Fprintf(telnetConn, string(msg)+"\n")
-				if err != nil {
-					log.Println("error when writing: ", err, fprintf)
-				}
-			}
-		}
-	}()
+	go handleWebSocketMessages(conn, telnetConn)
+	handleTelnetMessages(conn, telnetConn)
+}
 
+func handleWebSocketMessages(wsConn *websocket.Conn, telnetConn net.Conn) {
 	for {
-		buf := make([]byte, 1024*1024)
-		n, err := telnetConn.Read(buf)
+		msgType, msg, err := wsConn.ReadMessage()
 		if err != nil {
-			log.Println("Telnet read error:", err)
+			log.Printf("WebSocket read error (type %d): %s", msgType, err)
 			return
 		}
-		message := Message{Data: string(buf[:n]), Time: time.Now()}
-		// Forward Telnet data to WebSocket
-		byteMess, err := json.Marshal(message)
-		if err != nil {
-			log.Println("Error json marshalling message: ", err)
-		}
-		err = conn.WriteMessage(websocket.TextMessage, byteMess)
-		if err != nil {
-			log.Println(err)
+		if string(msg) == "__ping__" {
+			handlePingMessage(wsConn)
+		} else {
+			_, err := fmt.Fprintf(telnetConn, string(msg)+"\n")
+			if err != nil {
+				log.Println("Error writing to Telnet:", err)
+			}
 		}
 	}
 }
 
-func main() {
-	fmt.Println("------------------- starting server ------------------------")
-	http.HandleFunc("/ws", handleWebSocket)
-	log.Fatal(http.ListenAndServe("localhost:8090", nil))
+func handlePingMessage(wsConn *websocket.Conn) {
+	message := Message{Data: "__pong__"}
+	byteMessage, err := json.Marshal(message)
+	if err != nil {
+		log.Println("Error marshalling JSON:", err)
+		return
+	}
+	log.Println("Received ping message from " + wsConn.RemoteAddr().String())
+	err = wsConn.WriteMessage(websocket.PongMessage, byteMessage)
+	if err != nil {
+		log.Println("Error writing WebSocket message:", err)
+	}
+}
+
+func handleTelnetMessages(wsConn *websocket.Conn, telnetConn net.Conn) {
+	for {
+		buffer := make([]byte, wsBufferSize)
+		n, err := telnetConn.Read(buffer)
+		if err != nil {
+			log.Println("Telnet read error:", err)
+			return
+		}
+		message := Message{Data: string(buffer[:n]), Time: time.Now()}
+		byteMessage, err := json.Marshal(message)
+		if err != nil {
+			log.Println("Error marshalling JSON:", err)
+			return
+		}
+		err = wsConn.WriteMessage(websocket.TextMessage, byteMessage)
+		if err != nil {
+			log.Println("Error writing WebSocket message:", err)
+		}
+	}
 }
