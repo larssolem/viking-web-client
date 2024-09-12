@@ -4,6 +4,10 @@ on:
   workflow_run:
     workflows: [Test]
     types: [completed]
+    push:
+    pull_request:
+      branches:
+        - main
 
 jobs:
   on-success:
