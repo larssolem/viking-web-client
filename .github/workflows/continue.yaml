@@ -2,19 +2,14 @@ name: Continue
 
 on:
   workflow_run:
-    workflows: [Test]
-    types: [completed]
-    branches-ignore:
-      - "canary"
+    workflows:
+      - Preflight
+    types:
+      - completed
 
 jobs:
-  on-success:
+  test-job:
+    name: Test Step
     runs-on: ubuntu-latest
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
     steps:
-      - run: echo 'The triggering workflow passed'
-  on-failure:
-    runs-on: ubuntu-latest
-    if: ${{ github.event.workflow_run.conclusion == 'failure' }}
-    steps:
-      - run: echo 'The triggering workflow failed'
+      - run: env
