@@ -2,8 +2,8 @@ name: Continue
 
 on:
   workflow_run:
-    workflows: [ Test ]
-    types: [ completed ]
+    workflows: [Test]
+    types: [completed]
 
 jobs:
   on-success:
